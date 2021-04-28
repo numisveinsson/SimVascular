@@ -42,6 +42,7 @@ include_directories(${PYTHON_INCLUDE_PATH} ${PYTHON_INCLUDE_DIR} ${PYTHON_INCLUD
 include_directories(${TCL_INCLUDE_PATH} ${TK_INCLUDE_PATH} ${TINYXML_INCLUDE_DIR})
 
 list (APPEND CXXSRCS 
+  Imaging_PyModule.cxx
   Segmentation_PyModule.cxx
   Geometry_PyModule.cxx
   Math_PyModule.cxx
@@ -57,8 +58,8 @@ list (APPEND CXXSRCS
 add_library(${lib} ${SV_LIBRARY_TYPE} ${CXXSRCS})
 
 # hack to define US_MODULE_NAME because we are including sv4gui_ContourGroupIO.h
-set_property(TARGET ${lib} PROPERTY US_MODULE_NAME ${lib_module_name})
-set_property(TARGET ${lib} APPEND PROPERTY COMPILE_DEFINITIONS US_MODULE_NAME=${lib_module_name})
+set_property(TARGET ${lib} PROPERTY US_MODULE_NAME sv4guiModulePythonAPI)
+set_property(TARGET ${lib} APPEND PROPERTY COMPILE_DEFINITIONS US_MODULE_NAME=sv4guiModulePythonAPI)
 
 target_link_libraries(${lib} ${PYTHON_LIBRARY} ${org_sv_pythondatanodes} )
 
@@ -71,12 +72,13 @@ target_link_libraries(${lib}
   ${SV_LIB_OpenCASCADE_SOLID_NAME}
   ${SV_LIB_PATH_NAME}
   ${SV_LIB_POLYDATA_SOLID_NAME}
+  ${SV_LIB_MODULE_PROJECTMANAGEMENT_NAME}
   ${SV_LIB_SEGMENTATION_NAME}
   ${SV_LIB_TETGEN_MESH_NAME}
   ${SV_LIB_UTILS_NAME}
   ${SV_LIB_TETGEN_ADAPTOR_NAME}
 
-  org_sv_gui_qt_simulation1d
+  org_sv_gui_qt_romsimulation
 
   ${SV_LIB_MODULE_MESH_NAME}
   ${SV_LIB_MODULE_MODEL_NAME}
@@ -85,6 +87,7 @@ target_link_libraries(${lib}
   ${TCL_LIBRARY} 
   ${TK_LIBRARY}
   ${VTK_LIBRARIES} 
+  ${SV_LIB_MODULE_COMMON_NAME}
 )
 
 if(SV_USE_TINYXML)

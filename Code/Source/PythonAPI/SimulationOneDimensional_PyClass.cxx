@@ -33,7 +33,7 @@
 //
 //     oneD_sim = simulation.OneDimensional()
 
-#include "sv4gui_SimulationPython1d.h"
+#include "sv4gui_ROMSimulationPython.h"
 
 #include <map>
 #include <fstream>
@@ -110,7 +110,7 @@ namespace OneDimSim_Parameters {
 //-------------------------
 // Copy the input flow file to the output directory.
 void
-OneDimSim_WriteFlowFile(sv4guiSimulationPython1d& pythonInterface, std::vector<std::map<std::string,std::string>>& bcValues, 
+OneDimSim_WriteFlowFile(sv4guiROMSimulationPython& pythonInterface, std::vector<std::map<std::string,std::string>>& bcValues, 
     std::string& outputDir)
 {
   using namespace OneDimSim_Parameters;
@@ -142,16 +142,16 @@ OneDimSim_WriteFlowFile(sv4guiSimulationPython1d& pythonInterface, std::vector<s
   pythonInterface.AddParameter(params.INFLOW_INPUT_FILE, copyFileName); 
 }
 
-//-------------------------------
-// OneDimSim_WriteResistanceFile 
-//-------------------------------
+//------------------------
+// OneDimSim_WriteRCRFile  
+//------------------------
 //
-void
-OneDimSim_WriteRCRFile(sv4guiSimulationPython1d& pythonInterface, std::vector<std::map<std::string,std::string>>& bcValues,
+bool OneDimSim_WriteRCRFile(sv4guiROMSimulationPython& pythonInterface, std::vector<std::map<std::string,std::string>>& bcValues,
     std::string& outputDir)
 {
   using namespace OneDimSim_Parameters;
   std::vector<std::map<std::string,std::string>> rcrBcList;
+  std::string fileWritten;
 
   for (auto bcItem : bcValues) {
       auto bctype = bcItem[BOUNDARY_CONDITION_TYPE];
@@ -161,7 +161,7 @@ OneDimSim_WriteRCRFile(sv4guiSimulationPython1d& pythonInterface, std::vector<st
   }
 
   if (rcrBcList.size() == 0) {
-     return;
+     return false;
   }
 
   // Write the rcr values to a file.
@@ -190,19 +190,14 @@ OneDimSim_WriteRCRFile(sv4guiSimulationPython1d& pythonInterface, std::vector<st
       outs << "1.0 0" << std::endl;
   }
   outs.close();
-
-  // Add rcr parameters.
-  auto params = pythonInterface.m_ParameterNames;
-  pythonInterface.AddParameter(params.OUTFLOW_BC_TYPE, "rcr");
-  pythonInterface.AddParameter(params.OUTFLOW_BC_INPUT_FILE, fileName);
+  return true;
 }
 
 //-------------------------------
 // OneDimSim_WriteResistanceFile 
 //-------------------------------
 //
-void
-OneDimSim_WriteResistanceFile(sv4guiSimulationPython1d& pythonInterface, std::vector<std::map<std::string,std::string>>& bcValues,
+bool OneDimSim_WriteResistanceFile(sv4guiROMSimulationPython& pythonInterface, std::vector<std::map<std::string,std::string>>& bcValues,
     std::string& outputDir)
 {
   using namespace OneDimSim_Parameters;
@@ -216,7 +211,7 @@ OneDimSim_WriteResistanceFile(sv4guiSimulationPython1d& pythonInterface, std::ve
   }
 
   if (resBcList.size() == 0) {
-     return; 
+     return false; 
   }
 
   // Write the resistance values to a file.
@@ -233,11 +228,7 @@ OneDimSim_WriteResistanceFile(sv4guiSimulationPython1d& pythonInterface, std::ve
       outs << faceID << " " << resistance << "\n";
   }
   outs.close();
-
-  // Add resistance parameters.
-  auto params = pythonInterface.m_ParameterNames;
-  pythonInterface.AddParameter(params.OUTFLOW_BC_TYPE, "resistance");
-  pythonInterface.AddParameter(params.OUTFLOW_BC_INPUT_FILE, fileName);
+  return true; 
 }
 
 //------------------------------------------
@@ -246,7 +237,7 @@ OneDimSim_WriteResistanceFile(sv4guiSimulationPython1d& pythonInterface, std::ve
 // Add parameter values from the 'OneDimensionalParameters.BoundaryConditions' object.
 //
 void
-OneDimSim_AddBoundaryConditionParameters(sv4guiSimulationPython1d& pythonInterface, PyObject* modelObj, std::string& outputDir)
+OneDimSim_AddBoundaryConditionParameters(sv4guiROMSimulationPython& pythonInterface, PyObject* modelObj, std::string& outputDir)
 {
   using namespace OneDimSim_Parameters;
   auto params = pythonInterface.m_ParameterNames;
@@ -263,16 +254,28 @@ OneDimSim_AddBoundaryConditionParameters(sv4guiSimulationPython1d& pythonInterfa
       }
   }
 
+  std::vector<std::string> filesWritten;
+
   // Write the inflow BC data.
   OneDimSim_WriteFlowFile(pythonInterface, bcValues, outputDir);
 
   // Write the resistance BC data.
-  OneDimSim_WriteResistanceFile(pythonInterface, bcValues, outputDir);
+  if (OneDimSim_WriteResistanceFile(pythonInterface, bcValues, outputDir)) { 
+      filesWritten.push_back(std::string(BOUNDARY_CONDITION_RESISTANCE_FILE_NAME));
+  }
 
   // Write the RCR BC data.
-  OneDimSim_WriteRCRFile(pythonInterface, bcValues, outputDir);
+  if (OneDimSim_WriteRCRFile(pythonInterface, bcValues, outputDir)) {
+      filesWritten.push_back(std::string(BOUNDARY_CONDITION_RCR_FILE_NAME));
+  }
 
-  pythonInterface.AddParameter(params.UNIFORM_BC, "false");
+  // Set BC file names.
+  if (filesWritten.size() != 0) { 
+      pythonInterface.AddParameterList(params.OUTFLOW_BC_TYPE, filesWritten);
+      pythonInterface.AddParameter(params.UNIFORM_BC, "false");
+  }
+
+  pythonInterface.AddParameter(params.OUTFLOW_BC_INPUT_FILE, outputDir);
 }
 
 //------------------------------
@@ -280,7 +283,7 @@ OneDimSim_AddBoundaryConditionParameters(sv4guiSimulationPython1d& pythonInterfa
 //------------------------------
 //
 void
-OneDimSim_AddFluidParameters(sv4guiSimulationPython1d& pythonInterface, PyObject* fluidObj)
+OneDimSim_AddFluidParameters(sv4guiROMSimulationPython& pythonInterface, PyObject* fluidObj)
 {
   using namespace OneDimSim_Parameters;
   auto params = pythonInterface.m_ParameterNames;
@@ -297,10 +300,10 @@ OneDimSim_AddFluidParameters(sv4guiSimulationPython1d& pythonInterface, PyObject
 //---------------------------------
 // OneDimSim_AddMaterialParameters 
 //---------------------------------
-// Add material properties to sv4guiSimulationPython1d..
+// Add material properties to sv4guiROMSimulationPython..
 //
 void
-OneDimSim_AddMaterialParameters(sv4guiSimulationPython1d& pythonInterface, PyObject* materialObj)
+OneDimSim_AddMaterialParameters(sv4guiROMSimulationPython& pythonInterface, PyObject* materialObj)
 {
   using namespace OneDimSim_Parameters;
   auto params = pythonInterface.m_ParameterNames;
@@ -347,7 +350,7 @@ OneDimSim_AddMaterialParameters(sv4guiSimulationPython1d& pythonInterface, PyObj
 //-----------------------------
 //
 void
-OneDimSim_AddMeshParameters(sv4guiSimulationPython1d& pythonInterface, PyObject* meshObj)
+OneDimSim_AddMeshParameters(sv4guiROMSimulationPython& pythonInterface, PyObject* meshObj)
 {
   using namespace OneDimSim_Parameters;
   auto params = pythonInterface.m_ParameterNames;
@@ -361,7 +364,7 @@ OneDimSim_AddMeshParameters(sv4guiSimulationPython1d& pythonInterface, PyObject*
 // Add parameter values from the 'OneDimensionalParameters.ModelParameters' object.
 //
 void
-OneDimSim_AddModelParameters(sv4guiSimulationPython1d& pythonInterface, PyObject* modelObj, std::string& outputDir)
+OneDimSim_AddModelParameters(sv4guiROMSimulationPython& pythonInterface, PyObject* modelObj, std::string& outputDir)
 {
   using namespace OneDimSim_Parameters;
   auto params = pythonInterface.m_ParameterNames;
@@ -394,7 +397,7 @@ OneDimSim_AddModelParameters(sv4guiSimulationPython1d& pythonInterface, PyObject
 // Add solution paramaters. 
 //
 void
-OneDimSim_AddSolutionParameters(sv4guiSimulationPython1d& pythonInterface, PyObject* solutionObj)
+OneDimSim_AddSolutionParameters(sv4guiROMSimulationPython& pythonInterface, PyObject* solutionObj)
 {
   using namespace OneDimSim_Parameters;
   auto params = pythonInterface.m_ParameterNames;
@@ -418,10 +421,10 @@ OneDimSim_AddSolutionParameters(sv4guiSimulationPython1d& pythonInterface, PyObj
 //-------------------------------
 // Generate a 1D solver input file. 
 //
-// This is similar to the sv4guiSimulationPython1d::GenerateSolverInput() method.
+// This is similar to the sv4guiROMSimulationPython::GenerateSolverInput() method.
 //
 void
-OneDimSim_GenerateSolverInput(sv4guiSimulationPython1d& pythonInterface, std::string& outputDir)
+OneDimSim_GenerateSolverInput(sv4guiROMSimulationPython& pythonInterface, std::string& outputDir)
 {
   using namespace OneDimSim_Parameters;
   auto params = pythonInterface.m_ParameterNames;
@@ -524,8 +527,8 @@ OneDimSim_GenerateSolverInput(sv4guiSimulationPython1d& pythonInterface, std::st
 //----------------------------
 // OneDimSim_write_input_file 
 //----------------------------
-// This method uses a sv4guiSimulationPython1d() object to collect
-// parameter values and is similar to sv4guiSimulationView1d::CreateDataFiles().
+// This method uses a sv4guiROMSimulationPython() object to collect
+// parameter values and is similar to sv4guiROMSimulationView::CreateDataFiles().
 //
 PyDoc_STRVAR(OneDimSim_write_input_file_doc,
   "write_input_file(model, mesh, fluid, material, boundary_conditions, directory) \n\
@@ -554,9 +557,9 @@ OneDimSim_write_input_file(PySimulationOneDimensional* self, PyObject* args, PyO
       return api.argsError();
   }
 
-  // Create the 'sv4guiSimulationPython1d' object used to Set the 
+  // Create the 'sv4guiROMSimulationPython' object used to Set the 
   // parameters used by the Python script.
-  auto pythonInterface = sv4guiSimulationPython1d();
+  auto pythonInterface = sv4guiROMSimulationPython();
   auto params = pythonInterface.m_ParameterNames;
 
   // Add parameter values from the argument objects.
